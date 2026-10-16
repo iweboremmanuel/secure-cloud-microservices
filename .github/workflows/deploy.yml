@@ -46,6 +46,7 @@ jobs:
           audience: sts.amazonaws.com
 
       - name: Verify AWS Identity
+        shell: bash
         run: aws sts get-caller-identity --endpoint-url ${{ env.AWS_ENDPOINT_URL }}
 
       - name: Setup Terraform
@@ -54,6 +55,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Bootstrap State Backend & Init
+        shell: bash
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           if ! aws s3api head-bucket --bucket "$TF_STATE_BUCKET" --endpoint-url "$AWS_ENDPOINT_URL" 2>/dev/null; then
@@ -66,18 +68,22 @@ jobs:
           terraform init -input=false -reconfigure
 
       - name: Terraform Validate
+        shell: bash
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform validate
 
       - name: Terraform Plan
+        shell: bash
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform plan -input=false -out=tfplan
 
       - name: Terraform Apply
+        shell: bash
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform apply -input=false -auto-approve tfplan
 
       - name: Verify EKS Cluster Status
+        shell: bash
         run: |
           aws eks describe-cluster \
             --endpoint-url "$AWS_ENDPOINT_URL" \
@@ -87,6 +93,7 @@ jobs:
             --output text
 
       - name: Update Kubeconfig for EKS
+        shell: bash
         run: |
           aws eks update-kubeconfig \
             --endpoint-url "$AWS_ENDPOINT_URL" \
@@ -94,6 +101,7 @@ jobs:
             --name "$EKS_CLUSTER_NAME"
 
       - name: Verify Cluster Nodes
+        shell: bash
         run: |
           kubectl get nodes
 
@@ -101,9 +109,11 @@ jobs:
         uses: azure/setup-helm@v4
 
       - name: Update Helm Dependencies
+        shell: bash
         run: helm dependency update ./helm/securecloud
 
       - name: Install AWS Load Balancer Controller
+        shell: bash
         run: |
           controller_role_arn="$(terraform -chdir=infra/terraform output -raw aws_load_balancer_controller_role_arn)"
           vpc_id="$(terraform -chdir=infra/terraform output -raw vpc_id)"
@@ -133,6 +143,7 @@ jobs:
             --timeout=5m
 
       - name: Deploy Helm Chart
+        shell: bash
         working-directory: ${{ github.workspace }}
         run: |
           chart_path="$GITHUB_WORKSPACE/helm/securecloud"
@@ -152,6 +163,7 @@ jobs:
             --set image.tag=${{ github.sha }}
 
       - name: Verify WAF association
+        shell: bash
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.enable_disposable_public_http }}
         run: |
           alb_dns=""
