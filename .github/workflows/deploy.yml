@@ -25,7 +25,7 @@ env:
   TF_WORKING_DIR: infra/terraform
   AWS_ROLE_ARN: arn:aws:iam::000000000000:role/github-actions-role
   TF_STATE_BUCKET: secure-cloud-microservices-tfstate-floci
-  AWS_ENDPOINT_URL: http://host.docker.internal:4566
+  AWS_ENDPOINT_URL: http://172.17.0.1:4566
 
 jobs:
   terraform:
@@ -33,7 +33,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     
-    # Maps host.docker.internal to the gateway IP so the runner can reach Floci
     container:
       image: node:20-bookworm
       options: --add-host=host.docker.internal:host-gateway
