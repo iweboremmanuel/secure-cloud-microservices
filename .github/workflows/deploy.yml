@@ -1,4 +1,4 @@
-name: Provision Infrastructure (Terraform)
+name: Provision Infrastructure (Terraform - Floci Local)
 
 on:
   push:
@@ -23,8 +23,9 @@ env:
   AWS_REGION: us-east-1
   EKS_CLUSTER_NAME: secure-cloud-cluster-v2
   TF_WORKING_DIR: infra/terraform
-  AWS_ROLE_ARN: arn:aws:iam::797776210271:role/SecureCloudGitHubActionsRole
-  TF_STATE_BUCKET: secure-cloud-microservices-tfstate-797776210271
+  AWS_ROLE_ARN: arn:aws:iam::000000000000:role/github-actions-role
+  TF_STATE_BUCKET: secure-cloud-microservices-tfstate-floci
+  AWS_ENDPOINT_URL: http://host.docker.internal:4566
 
 jobs:
   terraform:
@@ -41,10 +42,11 @@ jobs:
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+          aws-endpoint: ${{ env.AWS_ENDPOINT_URL }}
           audience: sts.amazonaws.com
 
       - name: Verify AWS Identity
-        run: aws sts get-caller-identity
+        run: aws sts get-caller-identity --endpoint-url ${{ env.AWS_ENDPOINT_URL }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -54,10 +56,11 @@ jobs:
       - name: Bootstrap State Backend & Init
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          if ! aws s3api head-bucket --bucket "$TF_STATE_BUCKET" 2>/dev/null; then
+          if ! aws s3api head-bucket --bucket "$TF_STATE_BUCKET" --endpoint-url "$AWS_ENDPOINT_URL" 2>/dev/null; then
             aws s3api create-bucket \
               --bucket "$TF_STATE_BUCKET" \
-              --region "$AWS_REGION"
+              --region "$AWS_REGION" \
+              --endpoint-url "$AWS_ENDPOINT_URL"
           fi
 
           terraform init -input=false -reconfigure
@@ -77,6 +80,7 @@ jobs:
       - name: Verify EKS Cluster Status
         run: |
           aws eks describe-cluster \
+            --endpoint-url "$AWS_ENDPOINT_URL" \
             --name "$EKS_CLUSTER_NAME" \
             --region "$AWS_REGION" \
             --query 'cluster.status' \
@@ -85,6 +89,7 @@ jobs:
       - name: Update Kubeconfig for EKS
         run: |
           aws eks update-kubeconfig \
+            --endpoint-url "$AWS_ENDPOINT_URL" \
             --region "$AWS_REGION" \
             --name "$EKS_CLUSTER_NAME"
 
@@ -167,6 +172,7 @@ jobs:
           fi
 
           alb_arn="$(aws elbv2 describe-load-balancers \
+            --endpoint-url "$AWS_ENDPOINT_URL" \
             --region "$AWS_REGION" \
             --query "LoadBalancers[?DNSName=='$alb_dns'].LoadBalancerArn | [0]" \
             --output text)"
@@ -180,6 +186,7 @@ jobs:
 
           for attempt in $(seq 1 12); do
             if actual_waf_arn="$(aws wafv2 get-web-acl-for-resource \
+              --endpoint-url "$AWS_ENDPOINT_URL" \
               --region "$AWS_REGION" \
               --resource-arn "$alb_arn" \
               --query 'WebACL.ARN' \
