@@ -538,7 +538,7 @@ Run the test suite:
 Bash
 ./test-auth-flow.sh
 Important Architectural Note: Stateless JWT Behavior
-During testing, you will notice that an Access Token remains valid for protected resources even after /auth/logout is called.
+During testing, you will notice that an Access Token remains valiid for protected resources even after /auth/logout is called.
 
 Why this occurs:
 
