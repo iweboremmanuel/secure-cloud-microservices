@@ -32,6 +32,11 @@ jobs:
     name: Terraform Apply
     runs-on: ubuntu-latest
     environment: production
+    
+    # Maps host.docker.internal to the gateway IP so the runner can reach Floci
+    container:
+      image: node:20-bookworm
+      options: --add-host=host.docker.internal:host-gateway
 
     steps:
       - name: Checkout repository
