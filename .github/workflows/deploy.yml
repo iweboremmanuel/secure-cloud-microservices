@@ -26,6 +26,7 @@ env:
   AWS_ROLE_ARN: arn:aws:iam::000000000000:role/github-actions-role
   TF_STATE_BUCKET: secure-cloud-microservices-tfstate-floci
   AWS_ENDPOINT_URL: http://localhost:4566
+  AWS_S3_FORCE_PATH_STYLE: "true"
 
 jobs:
   terraform:
@@ -133,6 +134,37 @@ jobs:
             --set-string gateway.wafAclArn="$waf_web_acl_arn" `
             --set gateway.disposablePublicHttp=$enablePublicHttp `
             --set image.tag="${{ github.sha }}"
+
+      - name: Verify WAF association
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.enable_disposable_public_http }}
+        run: |
+          $alb_dns = ""
+          for ($i=1; $i -le 60; $i++) {$alb_dns = kubectl get ingress api-gateway --namespace securecloud --output=jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+              if (![string]::IsNullOrEmpty($alb_dns)) { break }
+              Start-Sleep -Seconds 10
+          }
+
+          if ([string]::IsNullOrEmpty($alb_dns)) {
+              Write-Error "The api-gateway Ingress did not receive an ALB hostname."
+              kubectl describe ingress api-gateway --namespace securecloud
+              exit 1
+          }
+
+          $alb_arn = aws elbv2 describe-load-balancers --endpoint-url "$env:AWS_ENDPOINT_URL" --region "$env:AWS_REGION" --query "LoadBalancers[?DNSName=='$alb_dns'].LoadBalancerArn | [0]" --output text
+          if ([string]::IsNullOrEmpty($alb_arn) -or$alb_arn -eq "None") {
+              Write-Error "Could not resolve ALB ARN for hostname $alb_dns."
+              exit 1
+          }
+
+          $expected_waf_arn = terraform -chdir=infra/terraform output -raw waf_web_acl_arn$actual_waf_arn = ""
+
+          for ($i=1; $i -le 12; $i++) {
+              try {
+                  $actual_waf_arn = aws wafv2 get-web-acl-for-resource --endpoint-url "$env:AWS_ENDPOINT_URL" --region "$env:AWS_REGION" --resource-arn "$alb_arn" --query 'WebACL.ARN' --output text 2>&1
+                  if ($actual_waf_arn -eq$expected_waf_arn) { break }
+              } catch {}
+              Start-Sleep -Seconds 10
+          }
 
       - name: Verify WAF association
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.enable_disposable_public_http }}
