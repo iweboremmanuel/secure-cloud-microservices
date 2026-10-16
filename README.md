@@ -68,12 +68,12 @@ What Was Implemented
 
 •	Hardened Cookie Security: Refresh tokens are sent using HttpOnly and SameSite=Strict flags to block client-side JavaScript theft and cross-site requests.
 
-•	Brute-Force Defense: Enforced IP-based rate limiting on login attempts and hashed passwords with bcrypt (cost factor 12).
+•	Brute-Force Defense: Login and registration are limited to 10 requests per IP per 15 minutes, and passwords are hashed with bcrypt (cost factor 12).
 
 API Endpoints was Built
 1.	Register User
 POST /auth/register
-Validates inputs using Zod, hashes the password, and creates a new user record in PostgreSQL.
+Validates inputs using Zod, hashes the password, and creates a new user record in PostgreSQL. Public registration always assigns the `user` role; administrator access must be provisioned through a trusted workflow.
 
 2.	Login
 POST /auth/login
@@ -91,31 +91,43 @@ Verification & Testing Steps
 You can test the entire authentication lifecycle using curl commands in your terminal.
 
 
-1.	Register a New Account
-curl -i -X POST http://localhost:4000/auth/register
-
--H "Content-Type: application/json"
-
--d '{"email":"secuser@example.com","password":"SecurePassword123!"}'
+1.	Register a New Account through the gateway
+curl -i -X POST http://localhost/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"secuser@example.com","password":"SecurePassword123!"}'
 
 2.	Log In & Store Cookies
-curl -i -c cookies.txt -X POST http://localhost:4000/auth/login
-
--H "Content-Type: application/json"
-
--d '{"email":"secuser@example.com","password":"SecurePassword123!"}'
+curl -i -c cookies.txt -X POST http://localhost/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"secuser@example.com","password":"SecurePassword123!"}'
 
 Check the output to ensure you received an accessToken JSON object and a Set-Cookie header.
 
 3.	Rotate Refresh Token
-curl -i -b cookies.txt -c cookies.txt -X POST http://localhost:4000/auth/refresh
+curl -i -b cookies.txt -c cookies.txt -X POST http://localhost/auth/refresh
 
 Verify that a new access token is returned and a new refresh token cookie is set.
 
 4.	Test Session Logout
-curl -i -b cookies.txt -c cookies.txt -X POST http://localhost:4000/auth/logout
+curl -i -b cookies.txt -c cookies.txt -X POST http://localhost/auth/logout
 
 Expected response: 200 OK with message "Logged out successfully" and an expired cookie header.
+
+5.	Create a Secure Note
+Use the access token returned by login. The gateway exposes resource-service endpoints under `/api/`.
+
+```sh
+curl -i -X POST http://localhost/api/notes/ \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"my first secure note"}'
+```
+
+6.	Run the focused brute-force and authentication tests
+```sh
+npm --prefix services/auth-service test -- --runInBand
+python -m pytest services/resource-service/tests/test_notes.py
+```
 
 Status and way forward
 Week 2 is complete and verified. The authentication service is containerized, stable, and ready to issue access tokens for the FastAPI resource service in Week 3.

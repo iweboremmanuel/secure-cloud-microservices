@@ -1,10 +1,12 @@
 import os
 import jwt
-from fastapi import FastAPI, Depends, Header, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from prometheus_fastapi_instrumentator import Instrumentator
+from app.routes.notes import router as notes_router
 
 app = FastAPI(title="SecureCloud Resource Service")
+app.include_router(notes_router)
 
 # Reads JWT_ACCESS_SECRET or falls back to JWT_SECRET / supersecretkey
 JWT_SECRET = os.getenv("JWT_ACCESS_SECRET", os.getenv("JWT_SECRET", "supersecretkey"))
@@ -13,20 +15,8 @@ ALGORITHM = "HS256"
 security = HTTPBearer(auto_error=False)
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    x_user_id: str = Header(None),
-    x_user_email: str = Header(None),
-    x_user_role: str = Header(None)
+    credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
-    # Plain English: First check if NGINX API Gateway already validated the identity headers
-    if x_user_id:
-        return {
-            "user_id": x_user_id,
-            "email": x_user_email,
-            "role": x_user_role or "user"
-        }
-
-    # Plain English: Fallback direct JWT validation if request bypassed Gateway
     if not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

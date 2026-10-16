@@ -14,6 +14,7 @@ jest.mock('pg', () => {
 });
 
 const app = require('../src/index');
+const pool = require('../src/db');
 
 describe('Auth Service Security Suite', () => {
   it('should pass healthcheck', () => {
@@ -44,6 +45,20 @@ describe('Auth Service Security Suite', () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.body).toHaveProperty('error', 'Invalid input');
+  });
+
+  it('should assign the user role even when registration requests admin', async () => {
+    pool.query.mockClear();
+    const res = await request(app)
+      .post('/auth/register')
+      .send({
+        email: 'admin-attempt@example.com',
+        password: 'SecurePassword123!',
+        role: 'admin'
+      });
+
+    expect(res.statusCode).toBe(201);
+    expect(pool.query.mock.calls[1][1][2]).toBe('user');
   });
 
   it('should reject login with invalid credentials', async () => {
