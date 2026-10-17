@@ -23,6 +23,7 @@ env:
   AWS_REGION: us-east-1
   EKS_CLUSTER_NAME: secure-cloud-cluster-v2
   TF_WORKING_DIR: infra/terraform
+  TF_VAR_floci_compatibility: "true"
   AWS_ROLE_ARN: arn:aws:iam::000000000000:role/github-actions-role
   TF_STATE_BUCKET: secure-cloud-microservices-tfstate-floci
   AWS_ENDPOINT_URL: http://localhost:4566
