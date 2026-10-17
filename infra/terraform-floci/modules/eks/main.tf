@@ -2,6 +2,8 @@ data "aws_partition" "current" {}
 data "aws_caller_identity" "current" {}
 
 data "aws_iam_session_context" "current" {
+  count = var.floci_compatibility ? 0 : 1
+
   # This data source provides information on the IAM source role of an STS assumed role
   # For non-role ARNs, this data source simply passes the ARN through issuer ARN
   # Ref https://github.com/terraform-aws-modules/terraform-aws-eks/issues/2327#issuecomment-1355581682
@@ -14,7 +16,8 @@ locals {
 
   partition = data.aws_partition.current.partition
 
-  cluster_role = try(aws_iam_role.this[0].arn, var.iam_role_arn)
+  cluster_role      = try(aws_iam_role.this[0].arn, var.iam_role_arn)
+  caller_issuer_arn = var.floci_compatibility ? local.cluster_role : data.aws_iam_session_context.current[0].issuer_arn
 
   create_outposts_local_cluster    = length(var.outpost_config) > 0
   enable_cluster_encryption_config = length(var.cluster_encryption_config) > 0 && !local.create_outposts_local_cluster
@@ -160,7 +163,7 @@ locals {
   # better controlled by users through Terraform
   bootstrap_cluster_creator_admin_permissions = {
     cluster_creator = {
-      principal_arn = data.aws_iam_session_context.current.issuer_arn
+      principal_arn = local.caller_issuer_arn
       type          = "STANDARD"
 
       policy_associations = {
@@ -249,7 +252,7 @@ module "kms" {
   # Policy
   enable_default_policy     = var.kms_key_enable_default_policy
   key_owners                = var.kms_key_owners
-  key_administrators        = coalescelist(var.kms_key_administrators, [data.aws_iam_session_context.current.issuer_arn])
+  key_administrators        = coalescelist(var.kms_key_administrators, [local.caller_issuer_arn])
   key_users                 = concat([local.cluster_role], var.kms_key_users)
   key_service_users         = var.kms_key_service_users
   source_policy_documents   = var.kms_key_source_policy_documents

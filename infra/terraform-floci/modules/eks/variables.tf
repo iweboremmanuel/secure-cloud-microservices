@@ -4,6 +4,12 @@ variable "create" {
   default     = true
 }
 
+variable "floci_compatibility" {
+  description = "Avoid IAM session-context lookups unsupported by Floci"
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   description = "A map of tags to add to all resources"
   type        = map(string)
